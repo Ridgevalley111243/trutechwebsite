@@ -131,11 +131,13 @@ export async function fetchProjects(): Promise<Project[]> {
 }
 
 // One request per page, however many parts of the page need the settings.
+type SettingsRows = { data: Record<string, unknown> }[];
 let settingsRequest: Promise<Settings> | undefined;
 export function fetchSettings(): Promise<Settings> {
-  settingsRequest ??= rest<{ data: Record<string, unknown> }[]>('site_settings?select=data&id=eq.1').then((rows) =>
-    normalizeSettings(rows[0]?.data),
-  );
+  const ask = () => rest<SettingsRows>('site_settings?select=data&id=eq.1');
+  // Started early by Base.astro; null if that request failed.
+  const early = (globalThis as { __settings?: Promise<SettingsRows | null> }).__settings;
+  settingsRequest ??= (early ? early.then((rows) => rows ?? ask()) : ask()).then((rows) => normalizeSettings(rows[0]?.data));
   return settingsRequest;
 }
 

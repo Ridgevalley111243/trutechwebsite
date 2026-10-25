@@ -24,14 +24,13 @@ function heroIntro() {
   animate(pills, { opacity: [0, 1], scale: [0.8, 1] }, { type: 'spring', stiffness: 380, damping: 22, delay: stagger(0.05, { startDelay: 0.55 }) });
 }
 
-/** The photo rises and settles once the current photo is known (profile.ts). */
+/** The glow behind the photo, and the photo's drift on scroll. (The photo's
+ * own entrance is CSS in index.astro, so it never waits for this script.) */
 export function heroPhoto() {
-  const img = document.querySelector<HTMLElement>('.stage .arch img');
   const glow = document.querySelector<HTMLElement>('.stage .glow');
   const lift = document.querySelector<HTMLElement>('.stage .lift');
-  if (calm || !img || !glow || !lift) return;
-  done([img, glow]);
-  animate(img, { opacity: [0, 1], y: [60, 0], scale: [0.94, 1] }, { type: 'spring', stiffness: 120, damping: 18, mass: 0.9 });
+  if (calm || !glow || !lift) return;
+  done([glow]);
   animate(glow, { opacity: [0, 1] }, { duration: 1.2, ease }).then(() => {
     // The glow breathes gently, only while the hero is on screen.
     const breathe = animate(glow, { opacity: [1, 0.7, 1] }, { duration: 5, ease: 'easeInOut', repeat: Infinity });
@@ -48,9 +47,12 @@ export function heroPhoto() {
 
 /** Stat numbers count up when they come into view. */
 function countUp() {
-  all('.stat-v [data-t]').forEach((el) => {
+  // Measure all first, then change: mixing the two makes the browser lay the
+  // page out again for every number.
+  const below = all('.stat-v [data-t]').filter((el) => el.getBoundingClientRect().top >= innerHeight);
+  below.forEach((el) => {
     const start = el.textContent?.trim() ?? '';
-    if (!/^\d+$/.test(start) || el.getBoundingClientRect().top < innerHeight) return;
+    if (!/^\d+$/.test(start)) return;
     el.textContent = '0';
     inView(
       el,
@@ -85,7 +87,7 @@ function chips() {
 
 export function homeMotion() {
   if (calm) return;
+  countUp(); // reads the layout, so before anything changes it
   heroIntro();
-  countUp();
   chips();
 }

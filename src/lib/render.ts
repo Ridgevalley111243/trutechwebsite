@@ -34,10 +34,14 @@ const ARROW = '<path d="M5 12h14"/><path d="m13 6 6 6-6 6"/>';
 const ARROW_UP_RIGHT = '<path d="M7 17 17 7"/><path d="M8 7h9v9"/>';
 
 /** The project's cover image, or a dark branded cover with the leaf and category. */
-export function coverHTML(p: Project, _seed: number, base: string, extraClass = '') {
+/** A smaller copy of an image with its widths (see src/lib/images.ts). */
+export type Sized = { src: string; srcset?: string; sizes?: string };
+const sizedAttrs = (img?: Sized) => (img?.srcset ? ` srcset="${esc(img.srcset)}" sizes="${esc(img.sizes ?? '100vw')}"` : '');
+
+export function coverHTML(p: Project, _seed: number, base: string, extraClass = '', img?: Sized) {
   const inner = p.cover
-    ? `<img src="${esc(assetUrl(p.cover, base))}" alt="${esc(`${p.title} preview`)}" loading="lazy" decoding="async" />`
-    : `<div class="cover-art" aria-hidden="true"><img src="${base}brand/leaf-light.png" alt="" class="cover-mark" loading="lazy" /><span class="cover-label">${esc(p.category)}</span></div>`;
+    ? `<img src="${esc(img?.src ?? assetUrl(p.cover, base))}"${sizedAttrs(img)} alt="${esc(`${p.title} preview`)}" loading="lazy" decoding="async" />`
+    : `<div class="cover-art" aria-hidden="true"><img src="${base}brand/leaf-light-300.webp" alt="" class="cover-mark" loading="lazy" /><span class="cover-label">${esc(p.category)}</span></div>`;
   return `<div class="cover ${extraClass}">${inner}</div>`;
 }
 
@@ -47,10 +51,10 @@ const statusClass = (s: string) => s.toLowerCase().replace(/\s+/g, '-');
 // fade in as they scroll into view (see Base.astro).
 const shown = () => typeof document !== 'undefined';
 
-export function cardHTML(p: Project, index: number, base: string) {
+export function cardHTML(p: Project, index: number, base: string, covers?: Record<string, Sized>) {
   return `<article class="p-card reveal${shown() ? ' is-visible' : ''}">
   <a href="${base}work/${esc(p.slug)}/" class="p-link">
-    <div class="p-media">${coverHTML(p, index, base)}<span class="p-status ${statusClass(p.status)}">${esc(p.status)}</span></div>
+    <div class="p-media">${coverHTML(p, index, base, '', covers?.[p.slug])}<span class="p-status ${statusClass(p.status)}">${esc(p.status)}</span></div>
     <div class="p-body">
       <div>
         <p class="p-meta">${esc(p.category)}${p.category ? ' · ' : ''}${p.year}</p>
@@ -137,6 +141,6 @@ export function filtersHTML(groups: string[], all = 'All') {
     .join('');
 }
 
-export function workGridHTML(projects: Project[], base: string, group: (p: Project) => string) {
-  return projects.map((p, i) => `<div data-group="${esc(group(p))}">${cardHTML(p, i, base)}</div>`).join('');
+export function workGridHTML(projects: Project[], base: string, group: (p: Project) => string, covers?: Record<string, Sized>) {
+  return projects.map((p, i) => `<div data-group="${esc(group(p))}">${cardHTML(p, i, base, covers)}</div>`).join('');
 }

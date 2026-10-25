@@ -2,6 +2,9 @@
 import Footer from '../components/Footer.astro';
 import Header from '../components/Header.astro';
 import { site } from '../site';
+import soraFont from '@fontsource-variable/sora/files/sora-latin-wght-normal.woff2?url';
+import manropeFont from '@fontsource-variable/manrope/files/manrope-latin-wght-normal.woff2?url';
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from '../lib/content';
 import '@fontsource-variable/sora/wght.css';
 import '@fontsource-variable/manrope/wght.css';
 import '../styles/global.css';
@@ -33,6 +36,28 @@ const ogImage = new URL(`${base}brand/og.png`, Astro.site);
     <meta name="theme-color" content="#121212" />
     <link rel="icon" type="image/png" href={`${base}favicon.png`} />
     <link rel="apple-touch-icon" href={`${base}apple-touch-icon.png`} />
+    <link rel="preload" href={soraFont} as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href={manropeFont} as="font" type="font/woff2" crossorigin />
+    {
+      !bare && (
+        <>
+          <link rel="preconnect" href={SUPABASE_URL} crossorigin />
+          <script is:inline define:vars={{ url: SUPABASE_URL, key: SUPABASE_ANON_KEY }}>
+            // Ask for the latest settings straight away, before the page's
+            // scripts have loaded (fetchSettings in src/lib/content.ts uses it).
+            window.__settings = fetch(url + '/rest/v1/site_settings?select=data&id=eq.1', {
+              headers: { apikey: key, Authorization: 'Bearer ' + key },
+            })
+              .then(function (r) {
+                return r.ok ? r.json() : null;
+              })
+              .catch(function () {
+                return null;
+              });
+          </script>
+        </>
+      )
+    }
     {
       !noindex && (
         <>

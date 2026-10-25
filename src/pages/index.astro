@@ -4,6 +4,7 @@ import Text from '../components/Text.astro';
 import Base from '../layouts/Base.astro';
 import { projects } from '../lib/build-data';
 import { CENTRED, featuredOf, fingerprint, photoPosStyle } from '../lib/content';
+import { coverImages, imgAttrs, responsive } from '../lib/images';
 import { cardHTML } from '../lib/render';
 import { tl } from '../lib/t';
 import { site, whatsappLink } from '../site';
@@ -13,6 +14,10 @@ const featured = featuredOf(projects);
 const leaf = `${base}brand/leaf-light.png`;
 const aboutPhoto = site.aboutPhoto || site.photo;
 const aboutPos = photoPosStyle(site.aboutPhoto ? site.aboutPhotoPos : CENTRED);
+// Smaller copies for the screen size (the original stays in data-photo).
+const heroImg = await responsive(site.photo, [360, 540, 720, 1000], '(min-width: 1000px) 500px, min(92vw, 500px)');
+const aboutImg = await responsive(aboutPhoto, [480, 800, 1200], '(min-width: 900px) 460px, 92vw');
+const covers = await coverImages(featured, '(min-width: 700px) 46vw, 92vw');
 const photoAlt = `Photo of ${site.owner || 'the founder of Trutech Business'}`;
 const follow = [
   ...site.socials.map((s) => ({ href: s.url, label: `${s.label}: ${s.handle}`, icon: s.icon })),
@@ -59,8 +64,21 @@ const chips = tl('home.about.chips');
           <span class="watermark" aria-hidden="true">TRUTECH</span>
           <span class="glow" aria-hidden="true" data-intro="photo"></span>
           <div class:list={['arch', { 'has-photo': site.photo }]} data-photo-slot data-photo={site.photo} data-fallback={leaf}>
-            <span class="lift"><img src={site.photo || leaf} alt={site.photo ? photoAlt : ''} width="380" height="500" data-intro="photo" /></span>
+            <span class="lift"><img {...(site.photo ? imgAttrs(heroImg) : { src: leaf })} alt={site.photo ? photoAlt : ''} width="380" height="500" fetchpriority="high" /></span>
           </div>
+          <script is:inline>
+            // Shows the photo as soon as the early settings request (Base.astro)
+            // confirms it's still the current one, without waiting for the
+            // page's scripts. Anything else is left to src/scripts/profile.ts.
+            (function () {
+              var slot = document.currentScript.previousElementSibling;
+              if (!window.__settings) return;
+              window.__settings.then(function (rows) {
+                var d = (rows && rows[0] && rows[0].data) || null;
+                if (d && (d.photo || '') === (slot.dataset.photo || '')) slot.classList.add('photo-ready');
+              });
+            })();
+          </script>
           <div class="ctas">
             <a class="btn btn-primary" href={base + 'work/'}><Text k="home.ctaWork" /> <Icon name="arrow" /></a>
             <a class="btn btn-ghost" href={base + 'contact/'}><Text k="home.ctaHire" /></a>
@@ -120,7 +138,7 @@ const chips = tl('home.about.chips');
     <div class="container about-grid">
       <div class="about-card reveal" aria-hidden={aboutPhoto ? undefined : 'true'}>
         <div class:list={['about-photo placed', { 'has-photo': aboutPhoto }]} data-photo-slot="about" data-photo={aboutPhoto} data-fallback={leaf} style={aboutPos}>
-          <img src={aboutPhoto || leaf} alt={aboutPhoto ? photoAlt : ''} width="460" height="518" loading="lazy" />
+          <img {...(aboutPhoto ? imgAttrs(aboutImg) : { src: leaf })} alt={aboutPhoto ? photoAlt : ''} width="460" height="518" loading="lazy" decoding="async" />
         </div>
         {chips.map((c, i) => <span class:list={['float-chip', i % 2 ? 'two' : 'one']} data-intro="chip">{c}</span>)}
       </div>
@@ -156,7 +174,7 @@ const chips = tl('home.about.chips');
         </div>
         <a class="pill-link" href={base + 'work/'}><Text k="home.work.more" /><span class="pill-arrow"><Icon name="arrow" size={18} /></span></a>
       </div>
-      <div class="grid grid-2" data-featured data-fp={fingerprint(featured)} set:html={featured.map((p, i) => cardHTML(p, i, base)).join('')} />
+      <div class="grid grid-2" data-featured data-fp={fingerprint(featured)} set:html={featured.map((p, i) => cardHTML(p, i, base, covers)).join('')} />
     </div>
   </section>
 
@@ -336,6 +354,18 @@ const chips = tl('home.about.chips');
   }
   .arch.has-photo {
     align-items: flex-end;
+  }
+  /* The photo rises into place once it's confirmed as the current one. */
+  @media (prefers-reduced-motion: no-preference) {
+    .js .arch.photo-ready img {
+      animation: photo-rise 0.9s cubic-bezier(0.2, 1.25, 0.35, 1) both;
+    }
+  }
+  @keyframes photo-rise {
+    from {
+      opacity: 0;
+      transform: translateY(60px) scale(0.94);
+    }
   }
   /* Moves the photo on scroll (src/scripts/motion.ts). */
   .lift {

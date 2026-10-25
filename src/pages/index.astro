@@ -355,6 +355,13 @@ const chips = tl('home.about.chips');
   .arch.has-photo {
     align-items: flex-end;
   }
+  /* As the photo drifts down on scroll (motion.ts), it sinks out of sight at
+     the bottom of its own area, under the fade, instead of sliding over
+     what comes after it (on phones, the links below the photo). */
+  .arch {
+    overflow: hidden;
+    overflow: clip;
+  }
   /* The photo rises into place once it's confirmed as the current one. */
   @media (prefers-reduced-motion: no-preference) {
     .js .arch.photo-ready img {

@@ -94,7 +94,9 @@ const ogImage = new URL(`${base}brand/og.png`, Astro.site);
     {
       !bare && (
         <script>
+          import { smoothScroll } from '../scripts/smooth';
           import { liveTexts } from '../scripts/texts';
+          smoothScroll();
           liveTexts().catch(() => {});
         </script>
       )

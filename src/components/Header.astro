@@ -75,7 +75,9 @@ const current = (href: string) => (href ? path.startsWith('/' + href) : path ===
   syncToggle();
 
   const onScroll = () => header.classList.toggle('is-scrolled', window.scrollY > 8);
-  onScroll();
+  // Checked on the next frame, so reading the scroll position doesn't force
+  // a layout while the page is still being set up.
+  requestAnimationFrame(onScroll);
   window.addEventListener('scroll', onScroll, { passive: true });
 </script>
 

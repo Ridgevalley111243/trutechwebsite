@@ -4,12 +4,14 @@ import PageHero from '../components/PageHero.astro';
 import Text from '../components/Text.astro';
 import Base from '../layouts/Base.astro';
 import { CENTRED, photoPosStyle } from '../lib/content';
+import { imgAttrs, responsive } from '../lib/images';
 import { t } from '../lib/t';
 import { site } from '../site';
 const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 const logo = `${base}brand/logo-on-dark.png`;
 const photo = site.aboutPhoto || site.photo;
 const pos = photoPosStyle(site.aboutPhoto ? site.aboutPhotoPos : CENTRED);
+const img = await responsive(photo, [480, 800, 1200], '(min-width: 900px) 40vw, 92vw');
 const photoAlt = `Photo of ${site.owner || 'the founder of Trutech Business'}`;
 ---
 <Base title={t('about.eyebrow')} description={site.about.paragraphs[0]}>
@@ -17,7 +19,7 @@ const photoAlt = `Photo of ${site.owner || 'the founder of Trutech Business'}`;
   <section class="section">
     <div class="container story">
       <div class:list={['portrait placed reveal', { 'has-photo': photo }]} data-photo-slot="about" data-photo={photo} data-fallback={logo} style={pos}>
-        <img src={photo || logo} alt={photo ? photoAlt : ''} />
+        <img {...(photo ? imgAttrs(img) : { src: logo })} alt={photo ? photoAlt : ''} fetchpriority="high" />
       </div>
       <div class="reveal">
         <Text as="div" class="text" k="about.story" />

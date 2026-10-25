@@ -4,10 +4,12 @@ import Base from '../../layouts/Base.astro';
 import { projects } from '../../lib/build-data';
 import { fingerprint, groupOf } from '../../lib/content';
 import { filtersHTML, workGridHTML } from '../../lib/render';
+import { coverImages } from '../../lib/images';
 import { t } from '../../lib/t';
 
 const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
 const groups = [...new Set(projects.map(groupOf))];
+const covers = await coverImages(projects, '(min-width: 1000px) 31vw, (min-width: 700px) 46vw, 92vw');
 ---
 <Base title={t('nav.work')} description={t('workPage.lead')}>
   <PageHero eyebrow="workPage.eyebrow" title="workPage.title" lead="workPage.lead" />
@@ -15,7 +17,7 @@ const groups = [...new Set(projects.map(groupOf))];
     <div class="container">
       <h2 class="sr-only">Projects</h2>
       <div class="filters" role="group" aria-label="Filter projects" data-filters data-all={t('workPage.all')} set:html={filtersHTML(groups, t('workPage.all'))} />
-      <div class="grid grid-3" data-grid data-fp={fingerprint(projects)} set:html={workGridHTML(projects, base, groupOf)} />
+      <div class="grid grid-3" data-grid data-fp={fingerprint(projects)} set:html={workGridHTML(projects, base, groupOf, covers)} />
     </div>
   </section>
 </Base>

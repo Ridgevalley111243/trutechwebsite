@@ -15,6 +15,9 @@ async function show(slot: HTMLElement, photo: string, owner: string) {
     slot.dataset.photo = photo;
     slot.classList.toggle('has-photo', Boolean(photo));
     if (!slot.dataset.fallback) slot.hidden = !photo;
+    // The built page may carry smaller copies of the old photo.
+    img.removeAttribute('srcset');
+    img.removeAttribute('sizes');
     img.src = photo || slot.dataset.fallback || '';
     img.alt = photo ? `Photo of ${owner || 'the founder of Trutech Business'}` : '';
   }

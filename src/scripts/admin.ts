@@ -15,6 +15,8 @@ const SITE = location.origin + base;
 const MEDIA = 'site-media';
 const FILES = 'client-files';
 const MAX_CLIENT_FILE = 50 * 1024 * 1024; // the client-files bucket limit
+// File formats offered for download links (see deliveryLinks in clientDetail).
+const LINK_FORMATS = ['PNG', 'JPG', 'PDF', 'SVG', 'AI', 'EPS', 'PSD', 'AF', 'CDR', 'MP4', 'ZIP'];
 const ICONS = ['tiktok', 'x', 'whatsapp', 'instagram', 'facebook', 'youtube', 'pinterest', 'telegram', 'snapchat', 'threads'];
 const TYPES = ['Graphic design', 'Website', 'Web application', 'Management system', 'Digital commerce', 'Branding'];
 const DELIVERY_STATUS: Record<string, string> = {
@@ -31,6 +33,16 @@ const main = () => $('[data-main]');
 const attr = (v: unknown) => esc(String(v ?? ''));
 const date = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 const size = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
+/** A link shown short: its site and the start of its path. */
+const shortLink = (url: string) => {
+  try {
+    const u = new URL(url);
+    const path = u.pathname.length > 24 ? `${u.pathname.slice(0, 24)}…` : u.pathname;
+    return u.hostname + path;
+  } catch {
+    return url;
+  }
+};
 const ext = (name: string) => (name.includes('.') ? name.split('.').pop()!.toUpperCase().slice(0, 8) : 'FILE');
 const oneLine = (v: FormDataEntryValue | null) => String(v ?? '').replace(/\s+/g, ' ').trim();
 const slugify = (s: string) =>
@@ -524,7 +536,7 @@ async function projectForm(id: string) {
 async function clientList() {
   const { data, error } = await sb
     .from('site_deliveries')
-    .select('id, client_name, title, kind, status, active, created_at, site_delivery_files(count), site_delivery_reviews(count)')
+    .select('id, client_name, title, kind, status, active, created_at, site_delivery_files(count), site_delivery_links(count), site_delivery_reviews(count)')
     .order('created_at', { ascending: false });
   if (error) throw error;
   const rows = data ?? [];
@@ -535,7 +547,7 @@ async function clientList() {
       rows.length
         ? `<ul class="list">${rows
             .map((d: any) => {
-              const files = d.site_delivery_files?.[0]?.count ?? 0;
+              const files = (d.site_delivery_files?.[0]?.count ?? 0) + (d.site_delivery_links?.[0]?.count ?? 0);
               const reviews = d.site_delivery_reviews?.[0]?.count ?? 0;
               const tone = d.status === 'changes_requested' ? 'warn' : d.status === 'approved' || d.status === 'delivered' ? 'good' : '';
               return `<li><a class="row no-thumb" href="#/clients/${d.id}">
@@ -585,7 +597,7 @@ async function clientDetail(id: string) {
       <a class="crumb" href="#/clients">← Client work</a>
       <div class="head"><h1>New client link</h1></div>
       <form data-delivery novalidate><section class="card panel">${deliveryFields({ kind: 'review', allow_download: true })}</section>
-        <p class="hint">Next you’ll add the files: images, PDFs, videos, Affinity files, ZIPs or any other format.</p>
+        <p class="hint">Next you’ll add the files: upload them here, or add Google Drive download links for each format.</p>
         <p class="error" role="alert" data-error hidden></p>
         <div class="actions"><button class="btn btn-primary" type="submit">Create link and add files</button><a class="btn btn-ghost" href="#/clients">Cancel</a></div></form>`;
     const form = $<HTMLFormElement>('[data-delivery]');
@@ -601,9 +613,10 @@ async function clientDetail(id: string) {
     return;
   }
 
-  const [{ data: d, error }, { data: files }, { data: reviews }] = await Promise.all([
+  const [{ data: d, error }, { data: files }, { data: links }, { data: reviews }] = await Promise.all([
     sb.from('site_deliveries').select('*').eq('id', id).maybeSingle(),
     sb.from('site_delivery_files').select('*').eq('delivery_id', id).order('sort_order').order('created_at'),
+    sb.from('site_delivery_links').select('*').eq('delivery_id', id).order('sort_order').order('created_at'),
     sb.from('site_delivery_reviews').select('*').eq('delivery_id', id).order('created_at', { ascending: false }),
   ]);
   if (error) throw error;
@@ -646,8 +659,33 @@ async function clientDetail(id: string) {
           : '<p class="hint">No files yet.</p>'
       }</div>
       <div class="actions"><label class="upload">+ Add files<input type="file" multiple data-add-files /></label></div>
-      <p class="hint">Any format: JPG, PNG, PDF, MP4, Affinity (.af), ZIP and more. Up to 50 MB per file; for bigger files, share a Google Drive link in the message.</p>
+      <p class="hint">For previews and work to review. Any format: JPG, PNG, PDF, MP4, Affinity (.af), ZIP and more, up to 50 MB per file. For the finished design, use download links below.</p>
       <div class="progress" data-progress hidden><span data-progress-text></span><progress max="1" value="0"></progress></div>
+    </section>
+
+    <section class="card panel"><h2>Download links</h2>
+      <p class="hint">For the finished design, one link per format. In Google Drive, upload the file, set sharing to “Anyone with the link”, copy the link and add it here. The client gets a Download button for each format.</p>
+      ${d.allow_download ? '' : '<p class="note-warn">Downloads are off for this link, so the client won’t see these yet. Turn on “Allow downloads” in Details when the work is ready.</p>'}
+      <div class="list" data-links>${
+        (links ?? []).length
+          ? (links ?? [])
+              .map(
+                (l: any) => `<div class="file-row"><span class="ext">${esc(l.format)}</span><div><strong>${esc(l.label || `${l.format} file`)}</strong><small class="muted"><a href="${attr(l.url)}" target="_blank" rel="noopener noreferrer">${esc(shortLink(l.url))}</a></small></div>
+                <button class="btn btn-ghost btn-sm" type="button" data-remove-link="${l.id}">Remove</button></div>`,
+              )
+              .join('')
+          : '<p class="hint">No download links yet.</p>'
+      }</div>
+      <form class="add-link" data-add-link novalidate>
+        <div class="two">
+          <div class="field"><label for="l-format">Format</label><select id="l-format" name="format">${LINK_FORMATS.map((f) => `<option>${f}</option>`).join('')}<option value="">Other…</option></select></div>
+          <div class="field" data-other-format hidden><label for="l-other">Format name</label><input id="l-other" name="other" maxlength="24" placeholder="e.g. TIFF" /></div>
+        </div>
+        <div class="field"><label for="l-label">Name <span class="muted">(optional)</span></label><input id="l-label" name="label" maxlength="120" placeholder="e.g. Logo, transparent background" /></div>
+        <div class="field"><label for="l-url">Google Drive link</label><textarea class="grow" rows="1" id="l-url" name="url" inputmode="url" placeholder="https://drive.google.com/file/d/…/view?usp=sharing"></textarea></div>
+        <p class="error" role="alert" data-link-error hidden></p>
+        <div class="actions"><button class="btn btn-primary btn-sm" type="submit">Add download link</button></div>
+      </form>
     </section>
 
     <section class="card panel"><h2>Reviews from the client</h2>
@@ -740,6 +778,42 @@ async function clientDetail(id: string) {
       toast('Files added. The client sees them on their link.');
       route();
     }
+  });
+  // Download links (Google Drive and the like), one per format.
+  const linkForm = $<HTMLFormElement>('[data-add-link]');
+  const formatSelect = $<HTMLSelectElement>('[name="format"]', linkForm);
+  formatSelect.addEventListener('change', () => {
+    $('[data-other-format]', linkForm).hidden = formatSelect.value !== '';
+    if (!formatSelect.value) $<HTMLInputElement>('[name="other"]', linkForm).focus();
+  });
+  linkForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const data = new FormData(linkForm);
+    const format = (String(data.get('format')) || oneLine(data.get('other')).toUpperCase()).slice(0, 24);
+    const url = oneLine(data.get('url'));
+    const error = $('[data-link-error]', linkForm);
+    const problem = !format
+      ? 'Type the format name.'
+      : !/^https:\/\/\S+$/.test(url)
+        ? 'Paste the full link, starting with https://'
+        : /drive\.google\.com\/drive\/folders\//.test(url)
+          ? 'That’s a folder link. Open the file in Google Drive and copy the link to the file itself.'
+          : '';
+    if (problem) return Object.assign(error, { hidden: false, textContent: problem });
+    const { error: err } = await sb
+      .from('site_delivery_links')
+      .insert({ delivery_id: id, format, label: oneLine(data.get('label')).slice(0, 120), url, sort_order: (links ?? []).length });
+    if (err) return Object.assign(error, { hidden: false, textContent: friendly(err) });
+    toast(`${format} download link added.`);
+    route();
+  });
+  $('[data-links]').addEventListener('click', async (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-remove-link]');
+    if (!b || !confirm('Remove this download link? The client will no longer see it.')) return;
+    const { error } = await sb.from('site_delivery_links').delete().eq('id', b.dataset.removeLink!);
+    if (error) return toast(friendly(error), true);
+    toast('Download link removed.');
+    route();
   });
   $('[data-files]').addEventListener('click', async (e) => {
     const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-remove-file]');

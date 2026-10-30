@@ -2,8 +2,9 @@
 //
 // Clients open a private link (/client/#<token>). The page calls this
 // function, which looks the token up with the service role and returns the
-// delivery: its message, short-lived links to the files, and earlier
-// reviews. Clients can't read the tables or the private bucket themselves.
+// delivery: its message, short-lived links to the files, download links
+// (when downloads are allowed) and earlier reviews. Clients can't read the
+// tables or the private bucket themselves.
 //
 //   GET  ?t=<token>                              → the delivery
 //   POST { t, name, decision, rating?, comment } → saves a review
@@ -63,6 +64,19 @@ async function findDelivery(token: unknown): Promise<Delivery | null> {
   return data as Delivery;
 }
 
+// A Google Drive file shared as "Anyone with the link" downloads straight
+// away from this address; other links are used as they are.
+function directDownload(url: string) {
+  try {
+    const u = new URL(url);
+    if (u.hostname !== 'drive.google.com') return url;
+    const id = u.pathname.match(/\/file\/d\/([\w-]+)/)?.[1] ?? u.searchParams.get('id');
+    return id ? `https://drive.google.com/uc?export=download&id=${encodeURIComponent(id)}` : url;
+  } catch {
+    return url;
+  }
+}
+
 async function ownerWhatsapp(): Promise<string> {
   const { data } = await db.from('site_settings').select('data').eq('id', 1).maybeSingle();
   return String(data?.data?.whatsapp ?? '').replace(/\D/g, '');
@@ -72,8 +86,11 @@ async function getDelivery(req: Request, token: string | null) {
   const d = await findDelivery(token);
   if (!d) return json(req, 404, { error: 'not_found' });
 
-  const [{ data: files, error: filesError }, { data: reviews }, whatsapp] = await Promise.all([
+  const [{ data: files, error: filesError }, { data: links, error: linksError }, { data: reviews }, whatsapp] = await Promise.all([
     db.from('site_delivery_files').select('id, path, name, size, mime').eq('delivery_id', d.id).order('sort_order').order('created_at'),
+    d.allow_download
+      ? db.from('site_delivery_links').select('id, format, label, url').eq('delivery_id', d.id).order('sort_order').order('created_at')
+      : Promise.resolve({ data: [], error: null }),
     db
       .from('site_delivery_reviews')
       .select('reviewer_name, decision, rating, comment, created_at')
@@ -82,6 +99,7 @@ async function getDelivery(req: Request, token: string | null) {
     ownerWhatsapp(),
   ]);
   if (filesError) throw filesError;
+  if (linksError) throw linksError;
 
   const bucket = db.storage.from('client-files');
   const items = await Promise.all(
@@ -103,6 +121,7 @@ async function getDelivery(req: Request, token: string | null) {
     allow_download: d.allow_download,
     created_at: d.created_at,
     files: items,
+    links: (links ?? []).map((l) => ({ id: l.id, format: l.format, label: l.label, url: directDownload(l.url) })),
     reviews: reviews ?? [],
     whatsapp,
   });

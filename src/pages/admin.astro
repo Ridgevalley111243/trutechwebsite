@@ -668,6 +668,24 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
   .adm .file-row {
     flex-wrap: wrap;
   }
+  .adm .file-row small a {
+    color: inherit;
+    overflow-wrap: anywhere;
+  }
+  .adm .add-link {
+    display: grid;
+    gap: 4px;
+    margin-top: 18px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+  }
+  .adm .note-warn {
+    margin: 0 0 14px;
+    padding: 10px 14px;
+    border: 1px solid var(--amber, #ffa00b);
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+  }
   .adm .file-row div {
     flex: 1 1 160px;
     min-width: 0;

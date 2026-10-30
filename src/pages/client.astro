@@ -61,7 +61,13 @@ const [agreeA, agreeB = '', agreeC = ''] = t('client.agree').split(/\{terms\}|\{
       </div>
       <p class="lead message" data-field="message"></p>
 
-      <h2 class="h2">{t('client.files')}</h2>
+      <section class="downloads" data-downloads hidden>
+        <h2 class="h2">{t('client.downloadsTitle')}</h2>
+        <p class="muted">{t('client.downloadsIntro')}</p>
+        <ul class="dl-list" data-download-list></ul>
+      </section>
+
+      <h2 class="h2" data-files-title>{t('client.files')}</h2>
       <div class="files" data-files></div>
 
       <section class="card review" data-review aria-labelledby="review-title">
@@ -135,6 +141,8 @@ const [agreeA, agreeB = '', agreeC = ''] = t('client.agree').split(/\{terms\}|\{
     allow_download: boolean;
     created_at: string;
     files: FileItem[];
+    /** Download links (Google Drive), one per format; only when downloads are allowed. */
+    links?: { id: string; format: string; label: string; url: string }[];
     reviews: Review[];
     whatsapp: string;
   };
@@ -177,6 +185,17 @@ const [agreeA, agreeB = '', agreeC = ''] = t('client.agree').split(/\{terms\}|\{
   const token = location.hash.slice(1);
   const api = (init?: RequestInit, query = '') =>
     fetch(CLIENT_PORTAL_URL + query, { ...init, headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json', ...init?.headers } });
+
+  const DOWNLOAD_ICON =
+    '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12"/><path d="m7 11 5 5 5-5"/><path d="M5 20h14"/></svg>';
+
+  function downloadLink(l: { format: string; label: string; url: string }) {
+    const action = fill(W.downloadAs, { format: l.format });
+    return `<li><a class="dl" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">
+      <span class="ext">${esc(l.format)}</span>
+      <span class="dl-text"><strong>${esc(l.label || action)}</strong>${l.label ? `<small>${esc(action)}</small>` : ''}</span>
+      <span class="dl-icon">${DOWNLOAD_ICON}</span></a></li>`;
+  }
 
   function fileCard(f: FileItem, allowDownload: boolean) {
     const kind = kindOf(f);
@@ -518,9 +537,16 @@ const [agreeA, agreeB = '', agreeC = ''] = t('client.agree').split(/\{terms\}|\{
     set('date', date(d.created_at));
     set('message', d.message);
     document.title = `${d.title} · Trutech Business`;
+    const links = d.links ?? [];
+    $('[data-downloads]').hidden = !links.length;
+    $('[data-download-list]').innerHTML = links.map(downloadLink).join('');
+    // With download links and nothing uploaded, there's no empty Files list.
+    $('[data-files-title]').hidden = !d.files.length && links.length > 0;
     $('[data-files]').innerHTML = d.files.length
       ? d.files.map((f) => fileCard(f, d.allow_download)).join('')
-      : `<p class="muted">${esc(W.noFiles)}</p>`;
+      : links.length
+        ? ''
+        : `<p class="muted">${esc(W.noFiles)}</p>`;
     if (!d.allow_download) protect(d);
     history(d.reviews);
     setupForm(d);
@@ -600,6 +626,82 @@ const [agreeA, agreeB = '', agreeC = ''] = t('client.agree').split(/\{terms\}|\{
   .h2 {
     font-size: clamp(1.5rem, 3vw, 2rem);
     margin-top: 8px;
+  }
+  .downloads {
+    margin-bottom: 40px;
+  }
+  .downloads .muted {
+    margin: -4px 0 16px;
+  }
+  .dl-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 12px;
+  }
+  @media (min-width: 700px) {
+    .dl-list {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  .dl-list :global(.dl) {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 64px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    text-decoration: none;
+    transition:
+      border-color 0.2s,
+      transform 0.2s;
+  }
+  .dl-list :global(.dl:hover) {
+    border-color: var(--amber);
+    transform: translateY(-2px);
+  }
+  .dl-list :global(.dl:focus-visible) {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .dl-list :global(.ext) {
+    flex: none;
+    display: grid;
+    place-items: center;
+    min-width: 56px;
+    height: 40px;
+    padding: 0 8px;
+    border-radius: 10px;
+    background: var(--amber);
+    color: var(--ink);
+    font: 700 0.85rem var(--font-body);
+    letter-spacing: 0.06em;
+  }
+  .dl-list :global(.dl-text) {
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+  }
+  .dl-list :global(.dl-text strong) {
+    overflow-wrap: anywhere;
+  }
+  .dl-list :global(.dl-text small) {
+    color: var(--text-muted);
+  }
+  .dl-list :global(.dl-icon) {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--accent);
   }
   .files {
     display: grid;
